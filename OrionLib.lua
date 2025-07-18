@@ -1361,36 +1361,99 @@ function OrionLib:MakeWindow(WindowConfig)
 				end
 				return Bind
 			end  
-			
-function ElementFunction:AddMultiDropdown(Config)
-    Config = Config or {}
-    Config.Name = Config.Name or "Multi Dropdown"
-    Config.Options = Config.Options or {}
-    Config.Default = Config.Default or {}
-    Config.Callback = Config.Callback or function() end
+
+function ElementFunction:AddMultiDropdown(MultiConfig)
+    MultiConfig = MultiConfig or {}
+    MultiConfig.Name = MultiConfig.Name or "Multi Dropdown"
+    MultiConfig.Options = MultiConfig.Options or {}
+    MultiConfig.Default = MultiConfig.Default or {}
+    MultiConfig.Callback = MultiConfig.Callback or function() end
 
     local Selected = {}
-    for _, item in pairs(Config.Default) do
+    for _, item in pairs(MultiConfig.Default) do
         Selected[item] = true
     end
+
+    local AllOptions = MultiConfig.Options
 
     local Container = AddThemeObject(SetProps(SetChildren(MakeElement("RoundFrame", Color3.fromRGB(255,255,255), 0, 5), {
         MakeElement("Stroke"),
         MakeElement("Padding", 5, 5, 5, 5),
         MakeElement("List", 0, 5)
     }), {
-        Size = UDim2.new(1, 0, 0, 38 + (#Config.Options * 28)),
+        Size = UDim2.new(1, 0, 0, 38 + (#MultiConfig.Options * 28)),
         AutomaticSize = Enum.AutomaticSize.Y,
         Parent = ItemParent
     }), "Second")
 
-    local Title = AddThemeObject(SetProps(MakeElement("Label", Config.Name, 15), {
+    local Title = AddThemeObject(SetProps(MakeElement("Label", MultiConfig.Name, 15), {
         Size = UDim2.new(1, -10, 0, 20),
         Position = UDim2.new(0, 5, 0, 0),
         Font = Enum.Font.GothamBold,
         TextColor3 = Color3.fromRGB(255,255,255)
     }), "Text")
     Title.Parent = Container
+
+    -- Search box
+    local SearchBox = AddThemeObject(Create("TextBox", {
+        Size = UDim2.new(1, -10, 0, 24),
+        Position = UDim2.new(0, 5, 0, 25),
+        BackgroundColor3 = Color3.fromRGB(35,35,35),
+        TextColor3 = Color3.fromRGB(255,255,255),
+        PlaceholderText = "Search...",
+        Font = Enum.Font.Gotham,
+        TextSize = 13,
+        ClearTextOnFocus = false,
+        TextXAlignment = Enum.TextXAlignment.Left
+    }), "Text")
+    SearchBox.Parent = Container
+
+    -- Select All button
+    local SelectAllBtn = SetProps(MakeElement("Button"), {
+        Size = UDim2.new(0, 80, 0, 22),
+        Position = UDim2.new(1, -85, 0, 27),
+        AnchorPoint = Vector2.new(0, 0),
+        Parent = Container
+    })
+    local SelectAllLabel = AddThemeObject(SetProps(MakeElement("Label", "Select All", 12), {
+        Size = UDim2.new(1, 0, 1, 0),
+        TextXAlignment = Enum.TextXAlignment.Center,
+    }), "Text")
+    SelectAllLabel.Parent = SelectAllBtn
+    -- Deselect All button
+    local DeselectAllBtn = SetProps(MakeElement("Button"), {
+        Size = UDim2.new(0, 80, 0, 22),
+        Position = UDim2.new(1, -170, 0, 27),
+        AnchorPoint = Vector2.new(0, 0),
+        Parent = Container
+    })
+    local DeselectAllLabel = AddThemeObject(SetProps(MakeElement("Label", "Deselect All", 12), {
+        Size = UDim2.new(1, 0, 1, 0),
+        TextXAlignment = Enum.TextXAlignment.Center,
+    }), "Text")
+    DeselectAllLabel.Parent = DeselectAllBtn
+
+    AddConnection(DeselectAllBtn.MouseButton1Click, function()
+        for _, option in pairs(AllOptions) do
+            Selected[option] = false
+        end
+        RefreshButtons(SearchBox.Text)
+        UpdateCallback()
+    end)
+
+
+    local ButtonListFrame = Create("Frame", {
+        Size = UDim2.new(1, -10, 0, 0),
+        Position = UDim2.new(0, 5, 0, 54),
+        BackgroundTransparency = 1,
+        AutomaticSize = Enum.AutomaticSize.Y,
+        Name = "ButtonsFrame",
+        Parent = Container
+    })
+    local ButtonLayout = MakeElement("List", 0, 4)
+    ButtonLayout.Parent = ButtonListFrame
+
+    local Buttons = {}
 
     local function UpdateCallback()
         local selectedList = {}
@@ -1399,43 +1462,62 @@ function ElementFunction:AddMultiDropdown(Config)
                 table.insert(selectedList, option)
             end
         end
-        Config.Callback(selectedList)
+        MultiConfig.Callback(selectedList)
     end
 
-    for _, option in pairs(Config.Options) do
-        local Toggle = false
-        if Selected[option] then Toggle = true end
+    local function RefreshButtons(filterText)
+        for _, b in pairs(ButtonListFrame:GetChildren()) do
+            if b:IsA("TextButton") then
+                b:Destroy()
+            end
+        end
+        for _, option in pairs(AllOptions) do
+            if filterText == nil or string.find(string.lower(option), string.lower(filterText)) then
+                local Toggle = Selected[option] or false
+                local Button = SetProps(MakeElement("Button"), {
+                    Size = UDim2.new(1, 0, 0, 26),
+                    Parent = ButtonListFrame
+                })
+                local Label = AddThemeObject(SetProps(MakeElement("Label", option, 13), {
+                    Size = UDim2.new(1, -28, 1, 0),
+                    Position = UDim2.new(0, 28, 0, 0),
+                    TextXAlignment = Enum.TextXAlignment.Left
+                }), "Text")
+                Label.Parent = Button
 
-        local Button = SetProps(MakeElement("Button"), {
-            Size = UDim2.new(1, 0, 0, 28),
-            Parent = Container
-        })
-        local Label = AddThemeObject(SetProps(MakeElement("Label", option, 14), {
-            Size = UDim2.new(1, -28, 1, 0),
-            Position = UDim2.new(0, 28, 0, 0),
-            TextXAlignment = Enum.TextXAlignment.Left
-        }), "Text")
-        Label.Parent = Button
+                local CheckIcon = AddThemeObject(SetProps(MakeElement("Image", "rbxassetid://3944680095"), {
+                    Size = UDim2.new(0, 18, 0, 18),
+                    Position = UDim2.new(0, 5, 0.5, 0),
+                    AnchorPoint = Vector2.new(0, 0.5),
+                    ImageTransparency = Toggle and 0 or 1
+                }), "TextDark")
+                CheckIcon.Parent = Button
 
-        local CheckIcon = AddThemeObject(SetProps(MakeElement("Image", "rbxassetid://3944680095"), {
-            Size = UDim2.new(0, 20, 0, 20),
-            Position = UDim2.new(0, 4, 0.5, 0),
-            AnchorPoint = Vector2.new(0, 0.5),
-            ImageTransparency = Toggle and 0 or 1
-        }), "TextDark")
-        CheckIcon.Parent = Button
-
-        AddConnection(Button.MouseButton1Click, function()
-            Toggle = not Toggle
-            CheckIcon.ImageTransparency = Toggle and 0 or 1
-            Selected[option] = Toggle
-            UpdateCallback()
-        end)
+                AddConnection(Button.MouseButton1Click, function()
+                    Toggle = not Toggle
+                    Selected[option] = Toggle
+                    CheckIcon.ImageTransparency = Toggle and 0 or 1
+                    UpdateCallback()
+                end)
+                Buttons[option] = Button
+            end
+        end
     end
 
-    return Selected
+    RefreshButtons(nil)
+
+    AddConnection(SearchBox:GetPropertyChangedSignal("Text"), function()
+        RefreshButtons(SearchBox.Text)
+    end)
+
+    AddConnection(SelectAllBtn.MouseButton1Click, function()
+        for _, option in pairs(AllOptions) do
+            Selected[option] = true
+        end
+        RefreshButtons(SearchBox.Text)
+        UpdateCallback()
+    end)
 end
-
 
 
 function ElementFunction:AddTextbox(TextboxConfig)
