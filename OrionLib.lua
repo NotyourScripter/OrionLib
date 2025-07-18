@@ -1362,7 +1362,7 @@ function OrionLib:MakeWindow(WindowConfig)
 				return Bind
 			end  
 
--- Simple Multi-Dropdown that works with most UI libraries
+-- Fixed Multi-Dropdown that works with most UI libraries
 function ElementFunction:AddMultiDropdown(DropdownConfig)
     DropdownConfig = DropdownConfig or {}
     DropdownConfig.Name = DropdownConfig.Name or "Multi Dropdown"
@@ -1402,11 +1402,13 @@ function ElementFunction:AddMultiDropdown(DropdownConfig)
         Parent = ItemParent,
         Position = UDim2.new(0, 0, 0, 38),
         Size = UDim2.new(1, 0, 1, -38),
-        ClipsDescendants = true
+        ClipsDescendants = true,
+        Visible = false  -- Start hidden
     }), "Divider")
 
     local Click = SetProps(MakeElement("Button"), {
-        Size = UDim2.new(1, 0, 1, 0)
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1  -- Make button transparent
     })
 
     local DropdownFrame = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 5), {
@@ -1507,7 +1509,7 @@ function ElementFunction:AddMultiDropdown(DropdownConfig)
             }), {
                 Parent = DropdownList,
                 Size = UDim2.new(1, 0, 0, 28),
-                BackgroundTransparency = 1,
+                BackgroundTransparency = 0,  -- Make sure button is visible
                 ClipsDescendants = true
             }), "Divider")
 
@@ -1606,7 +1608,10 @@ function ElementFunction:AddMultiDropdown(DropdownConfig)
     AddConnection(Click.MouseButton1Click, function()
         MultiDropdown.Toggled = not MultiDropdown.Toggled
         DropdownFrame.F.Line.Visible = MultiDropdown.Toggled
+        DropdownContainer.Visible = MultiDropdown.Toggled  -- Show/hide container
+        
         TweenService:Create(DropdownFrame.F.Ico, TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Rotation = MultiDropdown.Toggled and 180 or 0}):Play()
+        
         if #MultiDropdown.Options > MaxElements then
             TweenService:Create(DropdownFrame, TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = MultiDropdown.Toggled and UDim2.new(1, 0, 0, 38 + (MaxElements * 28)) or UDim2.new(1, 0, 0, 38)}):Play()
         else
