@@ -1363,277 +1363,263 @@ function OrionLib:MakeWindow(WindowConfig)
 			end  
 
 -- Simple Multi-Dropdown that works with most UI libraries
-function ElementFunction:AddMultiDropdown(MultiConfig)
-    MultiConfig = MultiConfig or {}
-    MultiConfig.Name = MultiConfig.Name or "Multi Dropdown"
-    MultiConfig.Options = MultiConfig.Options or {}
-    MultiConfig.Default = MultiConfig.Default or {}
-    MultiConfig.Callback = MultiConfig.Callback or function() end
+function ElementFunction:AddMultiDropdown(DropdownConfig)
+    DropdownConfig = DropdownConfig or {}
+    DropdownConfig.Name = DropdownConfig.Name or "Multi Dropdown"
+    DropdownConfig.Options = DropdownConfig.Options or {}
+    DropdownConfig.Default = DropdownConfig.Default or {}
+    DropdownConfig.Callback = DropdownConfig.Callback or function() end
+    DropdownConfig.Flag = DropdownConfig.Flag or nil
+    DropdownConfig.Save = DropdownConfig.Save or false
+    DropdownConfig.Max = DropdownConfig.Max or nil -- Optional maximum selections
+    DropdownConfig.ShowCount = DropdownConfig.ShowCount ~= false -- Show count by default
 
-    local Selected = {}
-    for _, item in pairs(MultiConfig.Default) do
-        Selected[item] = true
+    local MultiDropdown = {
+        Value = {},
+        Options = DropdownConfig.Options,
+        Buttons = {},
+        Checkboxes = {},
+        Toggled = false,
+        Type = "MultiDropdown",
+        Save = DropdownConfig.Save,
+        Max = DropdownConfig.Max,
+        ShowCount = DropdownConfig.ShowCount
+    }
+    local MaxElements = 5
+
+    -- Initialize selected values
+    for _, v in pairs(DropdownConfig.Default) do
+        if table.find(MultiDropdown.Options, v) then
+            table.insert(MultiDropdown.Value, v)
+        end
     end
 
-    local AllOptions = MultiConfig.Options
-    local IsOpen = false
+    local DropdownList = MakeElement("List")
 
-    -- Main Container - Always visible, expands when opened
-    local Container = AddThemeObject(SetProps(SetChildren(MakeElement("RoundFrame", Color3.fromRGB(40, 40, 45), 0, 8), {
-        MakeElement("Stroke", Color3.fromRGB(70, 70, 75), 1),
-        MakeElement("Padding", 12, 12, 12, 12),
-        MakeElement("List", 0, 8)
+    local DropdownContainer = AddThemeObject(SetProps(SetChildren(MakeElement("ScrollFrame", Color3.fromRGB(40, 40, 40), 4), {
+        DropdownList
     }), {
-        Size = UDim2.new(1, 0, 0, 50), -- Start collapsed
-        AutomaticSize = Enum.AutomaticSize.Y,
-        Parent = ItemParent
+        Parent = ItemParent,
+        Position = UDim2.new(0, 0, 0, 38),
+        Size = UDim2.new(1, 0, 1, -38),
+        ClipsDescendants = true
+    }), "Divider")
+
+    local Click = SetProps(MakeElement("Button"), {
+        Size = UDim2.new(1, 0, 1, 0)
+    })
+
+    local DropdownFrame = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 5), {
+        Size = UDim2.new(1, 0, 0, 38),
+        Parent = ItemParent,
+        ClipsDescendants = true
+    }), {
+        DropdownContainer,
+        SetProps(SetChildren(MakeElement("TFrame"), {
+            AddThemeObject(SetProps(MakeElement("Label", DropdownConfig.Name, 15), {
+                Size = UDim2.new(1, -12, 1, 0),
+                Position = UDim2.new(0, 12, 0, 0),
+                Font = Enum.Font.GothamBold,
+                Name = "Content"
+            }), "Text"),
+            AddThemeObject(SetProps(MakeElement("Image", "rbxassetid://7072719338"), { -- Different icon for multi-select
+                Size = UDim2.new(0, 20, 0, 20),
+                AnchorPoint = Vector2.new(0, 0.5),
+                Position = UDim2.new(1, -30, 0.5, 0),
+                ImageColor3 = Color3.fromRGB(240, 240, 240),
+                Name = "Ico"
+            }), "TextDark"),
+            AddThemeObject(SetProps(MakeElement("Label", "None Selected", 13), {
+                Size = UDim2.new(1, -40, 1, 0),
+                Font = Enum.Font.Gotham,
+                Name = "Selected",
+                TextXAlignment = Enum.TextXAlignment.Right
+            }), "TextDark"),
+            AddThemeObject(SetProps(MakeElement("Frame"), {
+                Size = UDim2.new(1, 0, 0, 1),
+                Position = UDim2.new(0, 0, 1, -1),
+                Name = "Line",
+                Visible = false
+            }), "Stroke"), 
+            Click
+        }), {
+            Size = UDim2.new(1, 0, 0, 38),
+            ClipsDescendants = true,
+            Name = "F"
+        }),
+        AddThemeObject(MakeElement("Stroke"), "Stroke"),
+        MakeElement("Corner")
     }), "Second")
 
-    -- Clickable Header
-    local Header = Create("TextButton", {
-        Size = UDim2.new(1, 0, 0, 30),
-        BackgroundTransparency = 1,
-        Text = "",
-        Parent = Container
-    })
+    AddConnection(DropdownList:GetPropertyChangedSignal("AbsoluteContentSize"), function()
+        DropdownContainer.CanvasSize = UDim2.new(0, 0, 0, DropdownList.AbsoluteContentSize.Y)
+    end)
 
-    -- Title
-    local Title = AddThemeObject(SetProps(MakeElement("Label", MultiConfig.Name, 14), {
-        Size = UDim2.new(1, -30, 1, 0),
-        Position = UDim2.new(0, 0, 0, 0),
-        Font = Enum.Font.GothamMedium,
-        TextXAlignment = Enum.TextXAlignment.Left
-    }), "Text")
-    Title.Parent = Header
-
-    -- Selection Counter
-    local Counter = AddThemeObject(SetProps(MakeElement("Label", "0 selected", 11), {
-        Size = UDim2.new(1, -30, 0, 15),
-        Position = UDim2.new(0, 0, 1, -15),
-        Font = Enum.Font.Gotham,
-        TextXAlignment = Enum.TextXAlignment.Left
-    }), "TextDark")
-    Counter.Parent = Header
-
-    -- Dropdown Arrow
-    local Arrow = AddThemeObject(SetProps(MakeElement("Label", "▼", 12), {
-        Size = UDim2.new(0, 20, 1, 0),
-        Position = UDim2.new(1, -20, 0, 0),
-        TextXAlignment = Enum.TextXAlignment.Center
-    }), "Text")
-    Arrow.Parent = Header
-
-    -- Options Container (Hidden by default)
-    local OptionsContainer = Create("Frame", {
-        Size = UDim2.new(1, 0, 0, 0),
-        BackgroundTransparency = 1,
-        Visible = false,
-        Parent = Container
-    })
-
-    -- Search Box
-    local SearchBox = AddThemeObject(Create("TextBox", {
-        Size = UDim2.new(1, 0, 0, 30),
-        BackgroundColor3 = Color3.fromRGB(30, 30, 35),
-        TextColor3 = Color3.fromRGB(255, 255, 255),
-        PlaceholderText = "Search pets...",
-        Font = Enum.Font.Gotham,
-        TextSize = 12,
-        Text = "",
-        Parent = OptionsContainer
-    }), "Second")
-
-    local SearchCorner = Create("UICorner", {
-        CornerRadius = UDim.new(0, 6),
-        Parent = SearchBox
-    })
-
-    local SearchPadding = Create("UIPadding", {
-        PaddingLeft = UDim.new(0, 8),
-        PaddingRight = UDim.new(0, 8),
-        Parent = SearchBox
-    })
-
-    -- Action Buttons Container
-    local ButtonsContainer = Create("Frame", {
-        Size = UDim2.new(1, 0, 0, 35),
-        BackgroundTransparency = 1,
-        Parent = OptionsContainer
-    })
-
-    -- Select All Button
-    local SelectAllBtn = AddThemeObject(SetProps(SetChildren(MakeElement("RoundFrame", Color3.fromRGB(0, 120, 215), 0, 6), {}), {
-        Size = UDim2.new(0, 80, 0, 25),
-        Position = UDim2.new(0, 0, 0, 5),
-        Parent = ButtonsContainer
-    }), "Accent")
-
-    local SelectAllLabel = AddThemeObject(SetProps(MakeElement("Label", "Select All", 11), {
-        Size = UDim2.new(1, 0, 1, 0),
-        TextXAlignment = Enum.TextXAlignment.Center,
-        Font = Enum.Font.GothamMedium
-    }), "AccentText")
-    SelectAllLabel.Parent = SelectAllBtn
-
-    -- Clear All Button
-    local ClearAllBtn = AddThemeObject(SetProps(SetChildren(MakeElement("RoundFrame", Color3.fromRGB(60, 60, 65), 0, 6), {}), {
-        Size = UDim2.new(0, 70, 0, 25),
-        Position = UDim2.new(0, 90, 0, 5),
-        Parent = ButtonsContainer
-    }), "Second")
-
-    local ClearAllLabel = AddThemeObject(SetProps(MakeElement("Label", "Clear All", 11), {
-        Size = UDim2.new(1, 0, 1, 0),
-        TextXAlignment = Enum.TextXAlignment.Center,
-        Font = Enum.Font.GothamMedium
-    }), "Text")
-    ClearAllLabel.Parent = ClearAllBtn
-
-    -- Options List
-    local OptionsList = Create("Frame", {
-        Size = UDim2.new(1, 0, 0, 0),
-        BackgroundTransparency = 1,
-        AutomaticSize = Enum.AutomaticSize.Y,
-        Parent = OptionsContainer
-    })
-
-    local OptionsLayout = Create("UIListLayout", {
-        SortOrder = Enum.SortOrder.LayoutOrder,
-        Padding = UDim.new(0, 3),
-        Parent = OptionsList
-    })
-
-    -- Layout for options container
-    local OptionsContainerLayout = Create("UIListLayout", {
-        SortOrder = Enum.SortOrder.LayoutOrder,
-        Padding = UDim.new(0, 8),
-        Parent = OptionsContainer
-    })
-
-    -- Functions
-    local function UpdateCounter()
-        local count = 0
-        for _, selected in pairs(Selected) do
-            if selected then count = count + 1 end
-        end
-        Counter.Text = count .. " selected"
-    end
-
-    local function UpdateCallback()
-        local selectedList = {}
-        for option, isSelected in pairs(Selected) do
-            if isSelected then
-                table.insert(selectedList, option)
-            end
-        end
-        UpdateCounter()
-        MultiConfig.Callback(selectedList)
-    end
-
-    local function ToggleDropdown()
-        IsOpen = not IsOpen
-        OptionsContainer.Visible = IsOpen
-        Arrow.Text = IsOpen and "▲" or "▼"
-        
-        if IsOpen then
-            Container.Size = UDim2.new(1, 0, 0, 200) -- Expand
+    local function UpdateSelectedText()
+        local selectedText = ""
+        if #MultiDropdown.Value == 0 then
+            selectedText = "None Selected"
+        elseif #MultiDropdown.Value == 1 then
+            selectedText = MultiDropdown.Value[1]
         else
-            Container.Size = UDim2.new(1, 0, 0, 50) -- Collapse
+            if MultiDropdown.ShowCount then
+                selectedText = #MultiDropdown.Value .. " Selected"
+            else
+                selectedText = table.concat(MultiDropdown.Value, ", ")
+                if #selectedText > 25 then
+                    selectedText = #MultiDropdown.Value .. " Selected"
+                end
+            end
+        end
+        DropdownFrame.F.Selected.Text = selectedText
+    end
+
+    local function CreateCheckbox(parent)
+        local CheckboxFrame = AddThemeObject(SetProps(SetChildren(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 3), {
+            MakeElement("Corner", 0, 3),
+            AddThemeObject(MakeElement("Stroke"), "Stroke")
+        }), {
+            Parent = parent,
+            Size = UDim2.new(0, 16, 0, 16),
+            Position = UDim2.new(1, -24, 0.5, -8),
+            BackgroundTransparency = 1
+        }), "Second")
+
+        local Checkmark = AddThemeObject(SetProps(MakeElement("Image", "rbxassetid://7072718301"), {
+            Size = UDim2.new(0, 12, 0, 12),
+            Position = UDim2.new(0, 2, 0, 2),
+            Parent = CheckboxFrame,
+            ImageTransparency = 1
+        }), "Text")
+
+        return CheckboxFrame, Checkmark
+    end
+
+    local function AddOptions(Options)
+        for _, Option in pairs(Options) do
+            local OptionBtn = AddThemeObject(SetProps(SetChildren(MakeElement("Button", Color3.fromRGB(40, 40, 40)), {
+                MakeElement("Corner", 0, 6),
+                AddThemeObject(SetProps(MakeElement("Label", Option, 13, 0.4), {
+                    Position = UDim2.new(0, 8, 0, 0),
+                    Size = UDim2.new(1, -32, 1, 0),
+                    Name = "Title"
+                }), "Text")
+            }), {
+                Parent = DropdownList,
+                Size = UDim2.new(1, 0, 0, 28),
+                BackgroundTransparency = 1,
+                ClipsDescendants = true
+            }), "Divider")
+
+            local CheckboxFrame, Checkmark = CreateCheckbox(OptionBtn)
+            
+            AddConnection(OptionBtn.MouseButton1Click, function()
+                MultiDropdown:Toggle(Option)
+                SaveCfg(game.GameId)
+            end)
+
+            MultiDropdown.Buttons[Option] = OptionBtn
+            MultiDropdown.Checkboxes[Option] = {Frame = CheckboxFrame, Mark = Checkmark}
         end
     end
 
-    local function CreateOptionButton(optionText)
-        local isSelected = Selected[optionText] or false
+    function MultiDropdown:Refresh(Options, Delete)
+        if Delete then
+            for _,v in pairs(MultiDropdown.Buttons) do
+                v:Destroy()
+            end    
+            table.clear(MultiDropdown.Options)
+            table.clear(MultiDropdown.Buttons)
+            table.clear(MultiDropdown.Checkboxes)
+            table.clear(MultiDropdown.Value)
+        end
+        MultiDropdown.Options = Options
+        AddOptions(MultiDropdown.Options)
+        UpdateSelectedText()
+    end
+
+    function MultiDropdown:Toggle(Value)
+        if not table.find(MultiDropdown.Options, Value) then
+            return
+        end
+
+        local index = table.find(MultiDropdown.Value, Value)
+        if index then
+            -- Remove from selection
+            table.remove(MultiDropdown.Value, index)
+            -- Update checkbox appearance
+            TweenService:Create(MultiDropdown.Checkboxes[Value].Frame, TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
+            TweenService:Create(MultiDropdown.Checkboxes[Value].Mark, TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {ImageTransparency = 1}):Play()
+        else
+            -- Check if we've reached max selections
+            if MultiDropdown.Max and #MultiDropdown.Value >= MultiDropdown.Max then
+                return
+            end
+            -- Add to selection
+            table.insert(MultiDropdown.Value, Value)
+            -- Update checkbox appearance
+            TweenService:Create(MultiDropdown.Checkboxes[Value].Frame, TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
+            TweenService:Create(MultiDropdown.Checkboxes[Value].Mark, TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {ImageTransparency = 0}):Play()
+        end
+
+        UpdateSelectedText()
+        return DropdownConfig.Callback(MultiDropdown.Value)
+    end
+
+    function MultiDropdown:Set(Values)
+        -- Clear current selections
+        table.clear(MultiDropdown.Value)
         
-        local OptionFrame = Create("Frame", {
-            Size = UDim2.new(1, 0, 0, 28),
-            BackgroundColor3 = Color3.fromRGB(45, 45, 50),
-            Parent = OptionsList
-        })
+        -- Reset all checkboxes
+        for _, checkbox in pairs(MultiDropdown.Checkboxes) do
+            TweenService:Create(checkbox.Frame, TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
+            TweenService:Create(checkbox.Mark, TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {ImageTransparency = 1}):Play()
+        end
 
-        local OptionCorner = Create("UICorner", {
-            CornerRadius = UDim.new(0, 6),
-            Parent = OptionFrame
-        })
-
-        local OptionButton = Create("TextButton", {
-            Size = UDim2.new(1, 0, 1, 0),
-            BackgroundTransparency = 1,
-            Text = "",
-            Parent = OptionFrame
-        })
-
-        local Checkbox = AddThemeObject(SetProps(MakeElement("Label", isSelected and "✓" or "☐", 14), {
-            Size = UDim2.new(0, 20, 1, 0),
-            Position = UDim2.new(0, 8, 0, 0),
-            TextXAlignment = Enum.TextXAlignment.Center,
-            TextColor3 = isSelected and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(150, 150, 150)
-        }), "Text")
-        Checkbox.Parent = OptionFrame
-
-        local OptionLabel = AddThemeObject(SetProps(MakeElement("Label", optionText, 12), {
-            Size = UDim2.new(1, -35, 1, 0),
-            Position = UDim2.new(0, 30, 0, 0),
-            TextXAlignment = Enum.TextXAlignment.Left,
-            Font = Enum.Font.Gotham
-        }), "Text")
-        OptionLabel.Parent = OptionFrame
-
-        AddConnection(OptionButton.MouseButton1Click, function()
-            Selected[optionText] = not Selected[optionText]
-            local newSelected = Selected[optionText]
-            Checkbox.Text = newSelected and "✓" or "☐"
-            Checkbox.TextColor3 = newSelected and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(150, 150, 150)
-            UpdateCallback()
-        end)
-
-        return OptionFrame
-    end
-
-    local function RefreshOptions(filterText)
-        -- Clear existing options
-        for _, child in pairs(OptionsList:GetChildren()) do
-            if child:IsA("Frame") then
-                child:Destroy()
+        -- Set new selections
+        for _, Value in pairs(Values) do
+            if table.find(MultiDropdown.Options, Value) then
+                table.insert(MultiDropdown.Value, Value)
+                if MultiDropdown.Checkboxes[Value] then
+                    TweenService:Create(MultiDropdown.Checkboxes[Value].Frame, TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
+                    TweenService:Create(MultiDropdown.Checkboxes[Value].Mark, TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {ImageTransparency = 0}):Play()
+                end
             end
         end
 
-        -- Create filtered options
-        for _, option in pairs(AllOptions) do
-            if not filterText or filterText == "" or string.find(string.lower(option), string.lower(filterText)) then
-                CreateOptionButton(option)
-            end
-        end
+        UpdateSelectedText()
+        return DropdownConfig.Callback(MultiDropdown.Value)
     end
 
-    -- Event Connections
-    AddConnection(Header.MouseButton1Click, ToggleDropdown)
+    function MultiDropdown:Clear()
+        self:Set({})
+    end
 
-    AddConnection(SearchBox:GetPropertyChangedSignal("Text"), function()
-        RefreshOptions(SearchBox.Text)
-    end)
+    function MultiDropdown:GetSelected()
+        return MultiDropdown.Value
+    end
 
-    AddConnection(SelectAllBtn.MouseButton1Click, function()
-        for _, option in pairs(AllOptions) do
-            Selected[option] = true
+    function MultiDropdown:SelectAll()
+        self:Set(MultiDropdown.Options)
+    end
+
+    AddConnection(Click.MouseButton1Click, function()
+        MultiDropdown.Toggled = not MultiDropdown.Toggled
+        DropdownFrame.F.Line.Visible = MultiDropdown.Toggled
+        TweenService:Create(DropdownFrame.F.Ico, TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Rotation = MultiDropdown.Toggled and 180 or 0}):Play()
+        if #MultiDropdown.Options > MaxElements then
+            TweenService:Create(DropdownFrame, TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = MultiDropdown.Toggled and UDim2.new(1, 0, 0, 38 + (MaxElements * 28)) or UDim2.new(1, 0, 0, 38)}):Play()
+        else
+            TweenService:Create(DropdownFrame, TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = MultiDropdown.Toggled and UDim2.new(1, 0, 0, DropdownList.AbsoluteContentSize.Y + 38) or UDim2.new(1, 0, 0, 38)}):Play()
         end
-        RefreshOptions(SearchBox.Text)
-        UpdateCallback()
     end)
 
-    AddConnection(ClearAllBtn.MouseButton1Click, function()
-        for _, option in pairs(AllOptions) do
-            Selected[option] = false
-        end
-        RefreshOptions(SearchBox.Text)
-        UpdateCallback()
-    end)
-
-    -- Initialize
-    RefreshOptions("")
-    UpdateCounter()
-
-    return Container
+    MultiDropdown:Refresh(MultiDropdown.Options, false)
+    MultiDropdown:Set(MultiDropdown.Value)
+    if DropdownConfig.Flag then
+        OrionLib.Flags[DropdownConfig.Flag] = MultiDropdown
+    end
+    return MultiDropdown
 end
 
 
