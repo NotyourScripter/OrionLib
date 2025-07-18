@@ -1368,6 +1368,7 @@ function ElementFunction:AddMultiDropdown(MultiConfig)
     MultiConfig.Options = MultiConfig.Options or {}
     MultiConfig.Default = MultiConfig.Default or {}
     MultiConfig.Callback = MultiConfig.Callback or function() end
+    MultiConfig.MaxHeight = MultiConfig.MaxHeight or 200 -- Maximum dropdown height
 
     local Selected = {}
     for _, item in pairs(MultiConfig.Default) do
@@ -1375,85 +1376,175 @@ function ElementFunction:AddMultiDropdown(MultiConfig)
     end
 
     local AllOptions = MultiConfig.Options
+    local IsDropdownOpen = false
+    local AnimationTween = nil
 
-    local Container = AddThemeObject(SetProps(SetChildren(MakeElement("RoundFrame", Color3.fromRGB(255,255,255), 0, 5), {
-        MakeElement("Stroke"),
-        MakeElement("Padding", 5, 5, 5, 5),
-        MakeElement("List", 0, 5)
+    -- Main container with modern styling
+    local Container = AddThemeObject(SetProps(SetChildren(MakeElement("RoundFrame", Color3.fromRGB(45, 45, 50), 0, 12), {
+        MakeElement("Stroke", Color3.fromRGB(70, 70, 75), 1),
+        MakeElement("Padding", 0, 0, 0, 0)
     }), {
-        Size = UDim2.new(1, 0, 0, 38 + (#MultiConfig.Options * 28)),
-        AutomaticSize = Enum.AutomaticSize.Y,
-        Parent = ItemParent
+        Size = UDim2.new(1, 0, 0, 48),
+        AutomaticSize = Enum.AutomaticSize.None,
+        Parent = ItemParent,
+        ClipsDescendants = true
     }), "Second")
 
-    local Title = AddThemeObject(SetProps(MakeElement("Label", MultiConfig.Name, 15), {
-        Size = UDim2.new(1, -10, 0, 20),
-        Position = UDim2.new(0, 5, 0, 0),
-        Font = Enum.Font.GothamBold,
-        TextColor3 = Color3.fromRGB(255,255,255)
-    }), "Text")
-    Title.Parent = Container
+    -- Header section (always visible)
+    local Header = Create("Frame", {
+        Size = UDim2.new(1, 0, 0, 48),
+        Position = UDim2.new(0, 0, 0, 0),
+        BackgroundTransparency = 1,
+        Parent = Container
+    })
 
-    -- Search box
+    -- Title with modern typography
+    local Title = AddThemeObject(SetProps(MakeElement("Label", MultiConfig.Name, 14), {
+        Size = UDim2.new(1, -80, 0, 20),
+        Position = UDim2.new(0, 16, 0, 6),
+        Font = Enum.Font.GothamMedium,
+        TextColor3 = Color3.fromRGB(200, 200, 205),
+        TextXAlignment = Enum.TextXAlignment.Left
+    }), "Text")
+    Title.Parent = Header
+
+    -- Selected count indicator
+    local SelectedCount = AddThemeObject(SetProps(MakeElement("Label", "0 selected", 12), {
+        Size = UDim2.new(1, -80, 0, 16),
+        Position = UDim2.new(0, 16, 0, 26),
+        Font = Enum.Font.Gotham,
+        TextColor3 = Color3.fromRGB(140, 140, 145),
+        TextXAlignment = Enum.TextXAlignment.Left
+    }), "TextDark")
+    SelectedCount.Parent = Header
+
+    -- Modern dropdown arrow
+    local DropdownArrow = AddThemeObject(SetProps(MakeElement("Image", "rbxassetid://3926305904"), {
+        Size = UDim2.new(0, 16, 0, 16),
+        Position = UDim2.new(1, -32, 0.5, 0),
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        ImageColor3 = Color3.fromRGB(160, 160, 165),
+        Rotation = 0
+    }), "TextDark")
+    DropdownArrow.Parent = Header
+
+    -- Dropdown content container
+    local DropdownContent = Create("Frame", {
+        Size = UDim2.new(1, 0, 0, 0),
+        Position = UDim2.new(0, 0, 0, 48),
+        BackgroundTransparency = 1,
+        Parent = Container,
+        ClipsDescendants = true
+    })
+
+    -- Search section with modern design
+    local SearchSection = Create("Frame", {
+        Size = UDim2.new(1, 0, 0, 40),
+        Position = UDim2.new(0, 0, 0, 0),
+        BackgroundTransparency = 1,
+        Parent = DropdownContent
+    })
+
     local SearchBox = AddThemeObject(Create("TextBox", {
-        Size = UDim2.new(1, -10, 0, 24),
-        Position = UDim2.new(0, 5, 0, 25),
-        BackgroundColor3 = Color3.fromRGB(35,35,35),
-        TextColor3 = Color3.fromRGB(255,255,255),
-        PlaceholderText = "Search...",
+        Size = UDim2.new(1, -32, 0, 32),
+        Position = UDim2.new(0, 16, 0, 4),
+        BackgroundColor3 = Color3.fromRGB(35, 35, 40),
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        PlaceholderText = "Search options...",
         Font = Enum.Font.Gotham,
         TextSize = 13,
         ClearTextOnFocus = false,
         TextXAlignment = Enum.TextXAlignment.Left
-    }), "Text")
-    SearchBox.Parent = Container
+    }), "Second")
+    SearchBox.Parent = SearchSection
 
-    -- Select All button
-    local SelectAllBtn = SetProps(MakeElement("Button"), {
-        Size = UDim2.new(0, 80, 0, 22),
-        Position = UDim2.new(1, -85, 0, 27),
-        AnchorPoint = Vector2.new(0, 0),
-        Parent = Container
+    -- Add rounded corners to search box
+    local SearchCorner = Create("UICorner", {
+        CornerRadius = UDim.new(0, 8),
+        Parent = SearchBox
     })
+
+    -- Add search icon
+    local SearchIcon = AddThemeObject(SetProps(MakeElement("Image", "rbxassetid://3944680095"), {
+        Size = UDim2.new(0, 16, 0, 16),
+        Position = UDim2.new(0, 8, 0.5, 0),
+        AnchorPoint = Vector2.new(0, 0.5),
+        ImageColor3 = Color3.fromRGB(140, 140, 145)
+    }), "TextDark")
+    SearchIcon.Parent = SearchBox
+
+    -- Adjust search box text position
+    local SearchPadding = Create("UIPadding", {
+        PaddingLeft = UDim.new(0, 28),
+        PaddingRight = UDim.new(0, 8),
+        Parent = SearchBox
+    })
+
+    -- Action buttons section
+    local ActionSection = Create("Frame", {
+        Size = UDim2.new(1, 0, 0, 36),
+        Position = UDim2.new(0, 0, 0, 40),
+        BackgroundTransparency = 1,
+        Parent = DropdownContent
+    })
+
+    -- Modern action buttons
+    local SelectAllBtn = AddThemeObject(SetProps(SetChildren(MakeElement("RoundFrame", Color3.fromRGB(60, 120, 255), 0, 6), {
+        MakeElement("Stroke", Color3.fromRGB(70, 130, 255), 1)
+    }), {
+        Size = UDim2.new(0, 80, 0, 28),
+        Position = UDim2.new(0, 16, 0, 4),
+        Parent = ActionSection
+    }), "Accent")
+
     local SelectAllLabel = AddThemeObject(SetProps(MakeElement("Label", "Select All", 12), {
         Size = UDim2.new(1, 0, 1, 0),
         TextXAlignment = Enum.TextXAlignment.Center,
-    }), "Text")
+        Font = Enum.Font.GothamMedium
+    }), "AccentText")
     SelectAllLabel.Parent = SelectAllBtn
-    -- Deselect All button
-    local DeselectAllBtn = SetProps(MakeElement("Button"), {
-        Size = UDim2.new(0, 80, 0, 22),
-        Position = UDim2.new(1, -170, 0, 27),
-        AnchorPoint = Vector2.new(0, 0),
-        Parent = Container
-    })
+
+    local DeselectAllBtn = AddThemeObject(SetProps(SetChildren(MakeElement("RoundFrame", Color3.fromRGB(60, 60, 65), 0, 6), {
+        MakeElement("Stroke", Color3.fromRGB(80, 80, 85), 1)
+    }), {
+        Size = UDim2.new(0, 90, 0, 28),
+        Position = UDim2.new(0, 104, 0, 4),
+        Parent = ActionSection
+    }), "Second")
+
     local DeselectAllLabel = AddThemeObject(SetProps(MakeElement("Label", "Deselect All", 12), {
         Size = UDim2.new(1, 0, 1, 0),
         TextXAlignment = Enum.TextXAlignment.Center,
+        Font = Enum.Font.GothamMedium
     }), "Text")
     DeselectAllLabel.Parent = DeselectAllBtn
 
-    AddConnection(DeselectAllBtn.MouseButton1Click, function()
-        for _, option in pairs(AllOptions) do
-            Selected[option] = false
-        end
-        RefreshButtons(SearchBox.Text)
-        UpdateCallback()
-    end)
-
-
-    local ButtonListFrame = Create("Frame", {
-        Size = UDim2.new(1, -10, 0, 0),
-        Position = UDim2.new(0, 5, 0, 54),
+    -- Options list with scroll
+    local OptionsScrollFrame = Create("ScrollingFrame", {
+        Size = UDim2.new(1, 0, 0, math.min(MultiConfig.MaxHeight, #AllOptions * 36)),
+        Position = UDim2.new(0, 0, 0, 76),
         BackgroundTransparency = 1,
-        AutomaticSize = Enum.AutomaticSize.Y,
-        Name = "ButtonsFrame",
-        Parent = Container
+        ScrollBarThickness = 4,
+        ScrollBarImageColor3 = Color3.fromRGB(100, 100, 105),
+        CanvasSize = UDim2.new(0, 0, 0, 0),
+        AutomaticCanvasSize = Enum.AutomaticSize.Y,
+        Parent = DropdownContent
     })
-    local ButtonLayout = MakeElement("List", 0, 4)
-    ButtonLayout.Parent = ButtonListFrame
 
-    local Buttons = {}
+    local OptionsLayout = Create("UIListLayout", {
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Padding = UDim.new(0, 2),
+        Parent = OptionsScrollFrame
+    })
+
+    -- Functions
+    local function UpdateSelectedCount()
+        local count = 0
+        for _, isSelected in pairs(Selected) do
+            if isSelected then count = count + 1 end
+        end
+        SelectedCount.Text = count .. " selected"
+    end
 
     local function UpdateCallback()
         local selectedList = {}
@@ -1462,63 +1553,176 @@ function ElementFunction:AddMultiDropdown(MultiConfig)
                 table.insert(selectedList, option)
             end
         end
+        UpdateSelectedCount()
         MultiConfig.Callback(selectedList)
     end
 
-    local function RefreshButtons(filterText)
-        for _, b in pairs(ButtonListFrame:GetChildren()) do
-            if b:IsA("TextButton") then
-                b:Destroy()
+    local function AnimateDropdown(open)
+        if AnimationTween then
+            AnimationTween:Cancel()
+        end
+        
+        local targetHeight = open and (48 + 76 + math.min(MultiConfig.MaxHeight, #AllOptions * 36 + 8)) or 48
+        local targetContentHeight = open and (76 + math.min(MultiConfig.MaxHeight, #AllOptions * 36 + 8)) or 0
+        local targetRotation = open and 180 or 0
+        
+        AnimationTween = game:GetService("TweenService"):Create(
+            Container,
+            TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+            {Size = UDim2.new(1, 0, 0, targetHeight)}
+        )
+        AnimationTween:Play()
+        
+        local contentTween = game:GetService("TweenService"):Create(
+            DropdownContent,
+            TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+            {Size = UDim2.new(1, 0, 0, targetContentHeight)}
+        )
+        contentTween:Play()
+        
+        local arrowTween = game:GetService("TweenService"):Create(
+            DropdownArrow,
+            TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+            {Rotation = targetRotation}
+        )
+        arrowTween:Play()
+    end
+
+    local function RefreshOptions(filterText)
+        for _, child in pairs(OptionsScrollFrame:GetChildren()) do
+            if child:IsA("Frame") then
+                child:Destroy()
             end
         end
+        
         for _, option in pairs(AllOptions) do
             if filterText == nil or string.find(string.lower(option), string.lower(filterText)) then
                 local Toggle = Selected[option] or false
-                local Button = SetProps(MakeElement("Button"), {
-                    Size = UDim2.new(1, 0, 0, 26),
-                    Parent = ButtonListFrame
+                
+                local OptionFrame = Create("Frame", {
+                    Size = UDim2.new(1, -16, 0, 34),
+                    BackgroundColor3 = Color3.fromRGB(50, 50, 55),
+                    Parent = OptionsScrollFrame
                 })
-                local Label = AddThemeObject(SetProps(MakeElement("Label", option, 13), {
-                    Size = UDim2.new(1, -28, 1, 0),
-                    Position = UDim2.new(0, 28, 0, 0),
-                    TextXAlignment = Enum.TextXAlignment.Left
-                }), "Text")
-                Label.Parent = Button
-
+                
+                local OptionCorner = Create("UICorner", {
+                    CornerRadius = UDim.new(0, 8),
+                    Parent = OptionFrame
+                })
+                
+                local OptionButton = Create("TextButton", {
+                    Size = UDim2.new(1, 0, 1, 0),
+                    BackgroundTransparency = 1,
+                    Text = "",
+                    Parent = OptionFrame
+                })
+                
                 local CheckIcon = AddThemeObject(SetProps(MakeElement("Image", "rbxassetid://3944680095"), {
                     Size = UDim2.new(0, 18, 0, 18),
-                    Position = UDim2.new(0, 5, 0.5, 0),
+                    Position = UDim2.new(0, 12, 0.5, 0),
                     AnchorPoint = Vector2.new(0, 0.5),
-                    ImageTransparency = Toggle and 0 or 1
-                }), "TextDark")
-                CheckIcon.Parent = Button
-
-                AddConnection(Button.MouseButton1Click, function()
+                    ImageColor3 = Color3.fromRGB(60, 120, 255),
+                    ImageTransparency = Toggle and 0 or 0.7
+                }), "Accent")
+                CheckIcon.Parent = OptionFrame
+                
+                local OptionLabel = AddThemeObject(SetProps(MakeElement("Label", option, 13), {
+                    Size = UDim2.new(1, -44, 1, 0),
+                    Position = UDim2.new(0, 36, 0, 0),
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    Font = Enum.Font.Gotham
+                }), "Text")
+                OptionLabel.Parent = OptionFrame
+                
+                -- Hover effect
+                AddConnection(OptionButton.MouseEnter, function()
+                    local hoverTween = game:GetService("TweenService"):Create(
+                        OptionFrame,
+                        TweenInfo.new(0.2, Enum.EasingStyle.Quad),
+                        {BackgroundColor3 = Color3.fromRGB(60, 60, 65)}
+                    )
+                    hoverTween:Play()
+                end)
+                
+                AddConnection(OptionButton.MouseLeave, function()
+                    local hoverTween = game:GetService("TweenService"):Create(
+                        OptionFrame,
+                        TweenInfo.new(0.2, Enum.EasingStyle.Quad),
+                        {BackgroundColor3 = Color3.fromRGB(50, 50, 55)}
+                    )
+                    hoverTween:Play()
+                end)
+                
+                AddConnection(OptionButton.MouseButton1Click, function()
                     Toggle = not Toggle
                     Selected[option] = Toggle
-                    CheckIcon.ImageTransparency = Toggle and 0 or 1
+                    CheckIcon.ImageTransparency = Toggle and 0 or 0.7
                     UpdateCallback()
                 end)
-                Buttons[option] = Button
             end
         end
     end
 
-    RefreshButtons(nil)
+    -- Event connections
+    AddConnection(Header.InputBegan, function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            IsDropdownOpen = not IsDropdownOpen
+            AnimateDropdown(IsDropdownOpen)
+        end
+    end)
 
     AddConnection(SearchBox:GetPropertyChangedSignal("Text"), function()
-        RefreshButtons(SearchBox.Text)
+        RefreshOptions(SearchBox.Text)
     end)
 
     AddConnection(SelectAllBtn.MouseButton1Click, function()
         for _, option in pairs(AllOptions) do
             Selected[option] = true
         end
-        RefreshButtons(SearchBox.Text)
+        RefreshOptions(SearchBox.Text)
         UpdateCallback()
     end)
-end
 
+    AddConnection(DeselectAllBtn.MouseButton1Click, function()
+        for _, option in pairs(AllOptions) do
+            Selected[option] = false
+        end
+        RefreshOptions(SearchBox.Text)
+        UpdateCallback()
+    end)
+
+    -- Initialize
+    RefreshOptions(nil)
+    UpdateSelectedCount()
+    
+    -- Return object for external control
+    return {
+        Container = Container,
+        SetOpen = function(open) 
+            IsDropdownOpen = open
+            AnimateDropdown(IsDropdownOpen)
+        end,
+        GetSelected = function()
+            local selectedList = {}
+            for option, isSelected in pairs(Selected) do
+                if isSelected then
+                    table.insert(selectedList, option)
+                end
+            end
+            return selectedList
+        end,
+        SetSelected = function(options)
+            for _, option in pairs(AllOptions) do
+                Selected[option] = false
+            end
+            for _, option in pairs(options) do
+                Selected[option] = true
+            end
+            RefreshOptions(SearchBox.Text)
+            UpdateCallback()
+        end
+    }
+end
 
 function ElementFunction:AddTextbox(TextboxConfig)
 				TextboxConfig = TextboxConfig or {}
